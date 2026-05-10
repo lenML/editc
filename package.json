@@ -1,0 +1,26 @@
+{
+  "name": "editc-ts",
+  "version": "1.0.0",
+  "description": "AST-based code editor (TypeScript)",
+  "main": "dist/editc.js",
+  "bin": {
+    "editc": "./bin/editc"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/editc.ts",
+    "dev": "tsx src/editc.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "commander": "^11.1.0",
+    "ts-morph": "^21.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.6.0"
+  }
+}
