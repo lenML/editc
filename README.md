@@ -1,24 +1,49 @@
 # editc
 
-edit code by code path without `old_text`
+Edit code by powerful **AST Selectors** without `old_text`.
 
 ## Usage
 
 ```bash
-cd editc-ts
 npm install
 
-# 方式一：直接使用 tsx（不需要编译）
-npx tsx src/editc.ts index.ts --target MyService.hello --replace "hello() { console.log('done'); }"
+# Option 1: Run directly with tsx (no build required)
+npx tsx src/editc.ts index.ts --selector "Class::MyService Method::hello" --replace "hello() { console.log('done'); }"
 
-# 方式二：编译后运行
+# Option 2: Build and run
 npm run build
-node dist/editc.js index.ts --target MyService.hello.body --replace "return 42;"
+node dist/editc.js index.ts --selector "Class::MyService Method::hello Block" --replace "return 42;"
 ```
 
-### Example
+## Selector Syntax
 
-假设源文件 `index.ts`：
+The AST Selector syntax works similarly to CSS Selectors, matching elements down the TypeScript Abstract Syntax Tree.
+
+### Basic Format
+
+Each part of a selector is space-separated, representing a descendant relationship.
+Format for a single part: `[Kind]::[Name][text^="Prefix"]:comment`
+
+| Component       | Description                                                                                                                                                                                                            | Example                             |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `Kind`          | The AST `SyntaxKind`. We support **all** native kinds (e.g., `VariableDeclaration`, `Identifier`, `ReturnStatement`), and provide friendly aliases like `Class`, `Function`, `Method`, `ForBlock`, `IfBlock`, `Block`. | `Function` or `FunctionDeclaration` |
+| `::Name`        | Matches the explicit `.getName()` or the identifier text of the node.                                                                                                                                                  | `Class::MyService`                  |
+| `[text^="..."]` | A property selector that matches if the node's full text starts with the specified prefix.                                                                                                                             | `ForBlock[text^="for (let i = 0"]`  |
+| `:comment`      | A pseudo-class that targets the leading JSDoc or line comment attached to the node, instead of the node itself.                                                                                                        | `Method::hello:comment`             |
+
+### CLI Options
+
+- `--selector <query>` : The AST selector path (required).
+- `--replace <code>` : Replace the matched node with the given code.
+- `--replace-file <filepath>` : Load replacement code from a file.
+- `--delete` : Delete the targeted node entirely.
+- `--before <code>` : Insert text right before the targeted node.
+- `--after <code>` : Insert text right after the targeted node.
+- `--all` : By default, editc edits the _first_ matching node. Pass `--all` to edit **all matching nodes** globally in the file scope.
+
+## Examples
+
+Assume the source file `index.ts`:
 
 ```ts
 class MyService {
@@ -26,52 +51,46 @@ class MyService {
     console.log("1");
   }
 }
+
+function fib(n: number) {
+  let fib = [0, 1];
+  for (let i = 2; i < n; i++) {
+    fib[i] = fib[i - 1] + fib[i - 2];
+  }
+  return fib;
+}
 ```
 
-#### 替换整个方法
+### Replace an entire method
 
 ```bash
-npx tsx src/editc.ts index.ts --target MyService.hello --replace "hello() { console.log('hi'); }"
+npx tsx src/editc.ts index.ts --selector "Class::MyService Method::hello" --replace "hello() { console.log('hi'); }"
 ```
 
-#### 只替换方法体（自动包裹花括号）
+### Replace only the method body (auto-wraps in braces)
 
 ```bash
-npx tsx src/editc.ts index.ts --target MyService.hello.body --replace "console.log('new body');"
+npx tsx src/editc.ts index.ts --selector "Class::MyService Method::hello Block" --replace "console.log('new body');"
 ```
 
-#### 插入装饰器
+### Delete a specific block statement using text prefix
 
 ```bash
-npx tsx src/editc.ts index.ts --target MyService.hello --before "@log()"
+npx tsx src/editc.ts index.ts --selector "Function::fib Block VariableStatement[text^='let fib =']" --delete
 ```
 
-#### 删除方法
+### Replace Comments
+
+Use `:comment` to edit JSDocs safely. You don't need to wrap your replacement in `/** */`, the tool does it for you.
 
 ```bash
-npx tsx src/editc.ts index.ts --target MyService.hello --delete
+npx tsx src/editc.ts index.ts --selector "Class::MyService Method::hello:comment" --replace "Says hello."
 ```
 
-#### 替换/删除/添加 注释
+### Global Rename / Replace using `--all`
 
-使用 `.#comment` 后缀定位注释。替换时不需要手动添加 `//` 或 `/** */`，工具会自动识别并包裹。如果目标节点原本没有注释，会自动添加。
-
-```bash
-# 替换注释（自动包裹）
-npx tsx src/editc.ts index.ts --target MyService.hello.#comment --replace "New description"
-
-# 删除注释
-npx tsx src/editc.ts index.ts --target MyService.hello.#comment --delete
-```
-
-#### 匹配并替换语句块
-
-定位到函数体或块级作用域（如 `fib.body`）后，可以通过 `--match` 传入前缀文本，精准匹配并替换整个对应的语句。
+Find all variables/identifiers named `fib` and rename them.
 
 ```bash
-# 替换 for 循环（原语句以 "for (let i = 2;" 开头）
-npx tsx src/editc.ts index.ts --target fib.body --match "for (let i = 2;" --replace "for (let i = 2; i < n; i++) { /* new loop */ }"
-
-# 删除特定语句
-npx tsx src/editc.ts index.ts --target fib.body --match "const b" --delete
+npx tsx src/editc.ts index.ts --selector "Function::fib Block Identifier::fib" --replace "fib_arr" --all
 ```
